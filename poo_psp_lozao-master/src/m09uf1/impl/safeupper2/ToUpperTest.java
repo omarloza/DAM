@@ -1,0 +1,96 @@
+package m09uf1.impl.safeupper2;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+
+import java.io.IOException;
+import java.util.logging.Level;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import lib.LoggingConfigurator;
+import lib.Problems;
+import lib.Reflections;
+import lib.Startable;
+import lib.Threads;
+import m09uf1.prob.safeupper2.ToUpperClient;
+
+public class ToUpperTest {
+
+	static final String HOST = "localhost";
+	static final int PORT = 5510;
+	static final long MARGIN = 500; // precisio del temporitzador
+
+	private long started;
+		
+	private static ToUpperClient getClientInstance(String host) {
+		
+		String packageName = Problems.getImplPackage(ToUpperClient.class);		
+		return Reflections.newInstanceOfType(
+				ToUpperClient.class, packageName + ".ToUpperClientImpl",
+				new Class[] {String.class, int.class}, 
+				new Object[] {host, PORT});
+	}
+	
+	private static Startable getServerInstance(String host) {
+		
+		String packageName = Problems.getImplPackage(ToUpperClient.class);		
+		return Reflections.newInstanceOfType(
+				Startable.class, packageName + ".ToUpperServerImpl",
+				new Class[] {String.class, int.class}, 
+				new Object[] {host, PORT});
+	}
+	
+	private void setStart() {
+		
+		started = System.currentTimeMillis();
+	}
+	
+	private void checkInterval(long millis) {
+		
+		long diff = Math.abs(System.currentTimeMillis() - started - millis);
+		if (diff >= MARGIN) {
+			fail("margin is " + diff);
+		}
+		setStart();
+	}
+	
+	@BeforeAll
+	static void beforeAll() {
+		
+		LoggingConfigurator.configure(Level.FINE);
+	}
+	
+	@Test
+	void testOne() {
+		
+		ToUpperClient tuc = getClientInstance(HOST);
+		Startable tus = getServerInstance(HOST);
+		
+		setStart();
+		tus.start();
+		Threads.sleep(500); // some time to start server
+		checkInterval(500);
+		
+		String input, result;
+		
+		try {
+			tuc.connect();
+			checkInterval(0);
+			
+			input = "Somewhere over the rainbow";			
+			result = tuc.toUpper(input);
+			checkInterval(0);
+			assertEquals(input.toUpperCase(), result);
+			
+			tuc.disconnect();
+			checkInterval(0);
+			
+		} catch (IOException e) {
+			fail(e);
+		} finally {
+			tus.stop();
+		}
+	}
+}
